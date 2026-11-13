@@ -302,15 +302,17 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
   function batFromMsg(u, m){
     if(!m) return null;
     const p = m.p || {}, sr = sensorReadingsMsg(u, m);
+    let pc = null, vc = null;
     for(const r of sr){
-      if(/бат|акб|акум|заряд|batt|bat|charge/i.test(r.name) && /%|відс|процент|percent/i.test(r.unit + ' ' + r.name) && r.value >= 0 && r.value <= 100) return {pct:Math.round(r.value), src:r.name};
+      if(!pc && /бат|акб|акум|заряд|batt|bat|charge/i.test(r.name) && /%|відс|процент|percent/i.test(r.unit + ' ' + r.name) && r.value >= 0 && r.value <= 100) pc = {pct:Math.round(r.value), src:r.name};
     }
-    for(const k in p){ if(PCT_KEYS.test(k)){ const x = Number(p[k]); if(x >= 0 && x <= 100) return {pct:Math.round(x), src:k}; } }
+    for(const k in p){ if(!pc && PCT_KEYS.test(k)){ const x = Number(p[k]); if(x >= 0 && x <= 100) pc = {pct:Math.round(x), src:k}; } }
     for(const r of sr){
-      if(r.type === 'voltage' || /бат|акб|акум|batt|bat|напруг|voltage|живлен|power/i.test(r.name)){ const v = asVolt(r.value); if(v) return {v, pct:pctFromV(v), src:r.name}; }
+      if(!vc && (r.type === 'voltage' || /бат|акб|акум|batt|bat|напруг|voltage|живлен|power/i.test(r.name))){ const v = asVolt(r.value); if(v) vc = {v, pct:pctFromV(v), src:r.name}; }
     }
-    for(const k in p){ if(BATV_KEYS.test(k)){ const v = asVolt(p[k]); if(v) return {v, pct:pctFromV(v), src:k}; } }
-    return null;
+    for(const k in p){ if(!vc && BATV_KEYS.test(k)){ const v = asVolt(p[k]); if(v) vc = {v, pct:pctFromV(v), src:k}; } }
+    if(pc && pc.pct > 0) return vc ? Object.assign({}, pc, {v:vc.v}) : pc;
+    return vc || pc;
   }
   function batNow(u){ return batFromMsg(u, lastMsg(u)); }
 
