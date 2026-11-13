@@ -127,17 +127,12 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
 <!-- Login -->
 <section id="login" class="hidden">
   <h1>Мій транспорт</h1>
-  <p class="sub">Вхід через ваш акаунт Moniterra</p>
+  <p class="sub">Ви увійдете на сторінці Moniterra, пароль не зберігається в застосунку</p>
   <form id="loginForm" autocomplete="on">
-    <label class="field"><span>Логін</span>
-      <input id="user" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
-    <label class="field"><span>Пароль</span>
-      <input id="pass" name="password" type="password" autocomplete="current-password" required></label>
     <details class="adv"><summary>Сервер</summary>
       <label class="field"><input id="server" value="https://moniterra.services" autocapitalize="none" autocorrect="off" spellcheck="false"></label>
     </details>
-    <label class="check"><input id="remember" type="checkbox" checked> Запам'ятати вхід на цьому телефоні</label>
-    <button class="btn" id="loginBtn" type="submit">Увійти</button>
+    <button class="btn" id="loginBtn" type="submit">Увійти через Moniterra</button>
     <div id="loginErr"></div>
   </form>
 </section>
@@ -246,22 +241,33 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     });
   }
 
-  /* ---------- auth ---------- */
+  /* ---------- auth (OAuth via Moniterra login page) ---------- */
+  function loginWithToken(server, token){
+    return loadSdk(server).then(() => new Promise(r => {
+      sess = wialon.core.Session.getInstance();
+      sess.initSession(server, 'MiyTransport');
+      sess.loginToken(token, '', r);
+    }));
+  }
+
   async function start(){
+    const q = new URLSearchParams(location.search);
     const server = LS.get('server') || DEFAULT_SERVER;
-    const token = LS.get('token');
-    const user = LS.get('user');
-    if(user) $('user').value = user;
     $('server').value = server;
+    if(q.has('access_token') || q.has('error')){
+      const tok = q.get('access_token');
+      history.replaceState(null, '', location.pathname);
+      if(tok) LS.set('token', tok);
+      else return showLogin('Вхід скасовано');
+    }
+    const token = LS.get('token');
     if(token){
       try{
-        await loadSdk(server);
-        sess = wialon.core.Session.getInstance();
-        sess.initSession(server, 'MiyTransport');
-        const code = await new Promise(r => sess.loginToken(token, '', r));
+        const code = await loginWithToken(server, token);
         if(!code) return enterApp();
         LS.del('token');
-      }catch(e){}
+        return showLogin('Потрібно увійти знову (' + errText(code) + ')');
+      }catch(e){ return showLogin(e.message || String(e)); }
     }
     showLogin();
   }
@@ -273,33 +279,13 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     $('loginBtn').disabled = false;
   }
 
-  $('loginForm').addEventListener('submit', async e => {
+  $('loginForm').addEventListener('submit', e => {
     e.preventDefault();
     const server = ($('server').value.trim() || DEFAULT_SERVER).replace(/\/$/,'');
-    const user = $('user').value.trim(), pass = $('pass').value;
-    $('loginBtn').disabled = true; $('loginErr').textContent = 'Вхід…';
-    try{
-      await loadSdk(server);
-      sess = wialon.core.Session.getInstance();
-      sess.initSession(server, 'MiyTransport');
-      const code = await new Promise(r => sess.login(user, pass, '', r));
-      if(code){
-        showLogin(code === 8 ? 'Неправильний логін або пароль' : errText(code));
-        return;
-      }
-      LS.set('server', server); LS.set('user', user);
-      $('pass').value = '';
-      if($('remember').checked){
-        // Create a long-lived token so the password itself is never stored
-        try{
-          const t = await remote('token/update', {callMode:'create', app:'MiyTransport', at:0, dur:0, fl:-1, p:'{}'});
-          if(t && t.h) LS.set('token', t.h);
-        }catch(err){ /* older servers may not support tokens — just skip */ }
-      }
-      enterApp();
-    }catch(err){
-      showLogin(err.message || String(err));
-    }
+    LS.set('server', server);
+    $('loginBtn').disabled = true;
+    const p = new URLSearchParams({client_id:'MiyTransport', access_type:'-1', activation_time:'0', duration:'0', flags:'0x1', redirect_uri: location.origin + location.pathname});
+    location.href = server + '/login.html?' + p.toString();
   });
 
   $('logoutBtn').addEventListener('click', () => {
