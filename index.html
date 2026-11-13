@@ -68,7 +68,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
 
   /* Bottom sheet */
   #sheet{position:absolute;left:0;right:0;bottom:0;z-index:1000;background:var(--card);border-radius:18px 18px 0 0;
-    box-shadow:var(--sheet-shadow);max-height:62vh;display:flex;flex-direction:column;
+    box-shadow:var(--sheet-shadow);max-height:72vh;max-height:72dvh;display:flex;flex-direction:column;
     padding-bottom:env(safe-area-inset-bottom);transition:max-height .25s ease}
   #sheet.collapsed{max-height:calc(118px + env(safe-area-inset-bottom))}
   .grab{position:relative;padding:8px 0 4px;min-height:44px;display:flex;justify-content:center;align-items:flex-start;cursor:pointer}
@@ -84,7 +84,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
   .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:2px 16px 8px}
   .sheet-head h2{margin:0;font-size:20px;letter-spacing:-.01em}
   .sheet-head .muted{color:var(--muted);font-size:14px}
-  #list{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 8px 8px}
+  #list{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;flex:1 1 auto;min-height:0;touch-action:pan-y;padding:0 8px 8px}
   .unit{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 8px;border-radius:12px}
   .unit:active,.unit.sel{background:rgba(127,127,127,.12)}
   .unit img{width:36px;height:36px;object-fit:contain;flex:none}
@@ -98,9 +98,10 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
   .pill.old{background:rgba(245,158,11,.16);color:var(--warn)}
 
   /* Detail */
-  #detail{padding:0 16px 12px;overflow-y:auto}
+  #listView,#detailView,#zoneView{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+  #detail{padding:0 16px 12px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;flex:1 1 auto;min-height:0;touch-action:pan-y}
   .dhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-  .dhead h3{margin:0;font-size:20px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dhead h3{margin:0;font-size:18px;flex:1;min-width:0;word-break:break-all;line-height:1.2}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
   .stat{background:rgba(127,127,127,.09);border-radius:12px;padding:10px 12px}
   .stat .k{font-size:12px;color:var(--muted)}
@@ -115,7 +116,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
   .prow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}
   .prow span:first-child{color:var(--muted);word-break:break-all}
   .prow span:last-child{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
-  #zoneView{padding:0 16px 12px;overflow-y:auto}
+  #zoneView{padding:0 16px 12px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y}
   .zone-row,.stop-row{display:flex;align-items:center;gap:8px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:15px}
   .zone-row .zn{flex:1;min-width:0;font-weight:600}
   .zone-row .zs{color:var(--muted);font-size:13px;font-weight:400}
@@ -203,6 +204,14 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
           <h3 id="dName"></h3>
           <span class="pill" id="dPill"></span>
         </div>
+        <div class="seg" id="seg">
+          <button data-r="today">Сьогодні</button>
+          <button data-r="yesterday">Вчора</button>
+          <button data-r="7d">7 днів</button>
+          <button data-r="30d">Місяць</button>
+        </div>
+        <div id="trackInfo"></div>
+        <div id="stopList"></div>
         <div class="grid">
           <div class="stat"><div class="k" id="dBatK">Батарея трекера</div><div class="v" id="dBat">—</div></div>
           <div class="stat"><div class="k">Швидкість</div><div class="v" id="dSpeed">—</div></div>
@@ -213,14 +222,6 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
           <div class="stat wide"><div class="k">Координати</div><div class="v" id="dCoords" style="font-size:14px">—</div></div>
         </div>
         <details class="params"><summary>Усі датчики та параметри</summary><div id="dParams"></div></details>
-        <div class="seg" id="seg">
-          <button data-r="today">Сьогодні</button>
-          <button data-r="yesterday">Вчора</button>
-          <button data-r="3d">3 дні</button>
-          <button data-r="7d">7 днів</button>
-        </div>
-        <div id="trackInfo"></div>
-        <div id="stopList"></div>
         <div class="row">
           <a class="btn secondary" id="navLink" target="_blank" rel="noopener">Відкрити в Картах</a>
         </div>
@@ -533,6 +534,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     $('dPill').className = 'pill '+st.cls; $('dPill').textContent = st.text;
     const b = batNow(u);
     $('dBat').innerHTML = b ? `<span class="${batLowPct(b.pct)?'bat-low':''}">${b.pct}%</span>${b.v ? ` <span style="font-size:13px;color:var(--muted);font-weight:500">${b.v} В</span>` : ''}` : '—';
+    if(b) $('dBat').insertAdjacentHTML('beforeend', `<div style="font-size:11px;color:var(--muted);font-weight:500;margin-top:2px">джерело: ${esc(String(b.src))}</div>`);
     const e = est[u.getId()];
     if(!b){ $('dEst').textContent = '—'; $('dEstSub').textContent = 'Трекер не передає заряд батареї'; }
     else if(!e){ $('dEst').textContent = 'Рахую…'; $('dEstSub').textContent = 'Аналізую заряд за 10 днів'; }
@@ -581,6 +583,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     if(r==='today') return [s(sod), s(now)];
     if(r==='yesterday') return [s(sod) - 86400, s(sod) - 1];
     if(r==='3d') return [s(sod) - 2*86400, s(now)];
+    if(r==='30d') return [s(sod) - 29*86400, s(now)];
     return [s(sod) - 6*86400, s(now)];
   }
 
