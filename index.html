@@ -613,9 +613,10 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
       const stops = findStops(msgs, to);
       stops.forEach((s, i) => trackLayer.addLayer(L.marker([s.y, s.x], {icon: L.divIcon({className:'', html:`<div class="stop-dot">${i+1}</div>`, iconSize:[22,22], iconAnchor:[11,11]})})
         .bindPopup(`<b>Стоянка ${i+1}</b><br>${fmtTime(s.from)} – ${s.open ? 'зараз' : fmtTime(s.to)}<br>${fmtDur(s.to - s.from)}${stopZone(s) ? '<br>Зона: ' + esc(stopZone(s)) : ''}`)));
-      const stopSec = stops.reduce((a, s) => a + (s.to - s.from), 0);
-      const span = msgs[msgs.length-1].t - msgs[0].t;
-      $('trackInfo').textContent = `Пробіг ≈ ${dist.toFixed(1)} км · макс. ${maxS} км/год · стоянок: ${stops.length} · у дорозі ≈ ${fmtDur(Math.max(0, span - stopSec))}`;
+      let drive = 0, cur = msgs[0].t;
+      for(const s of stops){ drive += Math.max(0, s.from - cur); cur = Math.max(cur, s.to); }
+      drive += Math.max(0, msgs[msgs.length-1].t - cur);
+      $('trackInfo').textContent = `Пробіг ≈ ${dist.toFixed(1)} км · макс. ${maxS} км/год · стоянок: ${stops.length} · у дорозі ≈ ${fmtDur(drive)}`;
       lastStops = stops;
       $('stopList').innerHTML = stops.length ? '<div style="font-size:13px;color:var(--muted);margin:4px 0">Стоянки (торкніться, щоб показати)</div>' + stops.map((s, i) =>
         `<div class="stop-row" data-i="${i}"><div class="stop-dot">${i+1}</div><div style="flex:1;min-width:0">${fmtTime(s.from)} – ${s.open ? 'зараз' : fmtTime(s.to)}${stopZone(s) ? ' · <span class="zone-tag">' + esc(stopZone(s)) + '</span>' : ''}</div><b>${fmtDur(s.to - s.from)}</b></div>`).join('') : '';
