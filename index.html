@@ -115,6 +115,18 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
   .prow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}
   .prow span:first-child{color:var(--muted);word-break:break-all}
   .prow span:last-child{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+  #zoneView{padding:0 16px 12px;overflow-y:auto}
+  .zone-row,.stop-row{display:flex;align-items:center;gap:8px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:15px}
+  .zone-row .zn{flex:1;min-width:0;font-weight:600}
+  .zone-row .zs{color:var(--muted);font-size:13px;font-weight:400}
+  .mini-btn{padding:7px 10px;border-radius:9px;background:rgba(127,127,127,.12);font-size:13px;font-weight:600;white-space:nowrap}
+  .mini-btn.danger{color:var(--err)}
+  .hint{background:rgba(31,111,235,.1);color:var(--accent);border-radius:10px;padding:10px 12px;font-size:14px;margin:6px 0 10px}
+  .inp{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:16px;margin-bottom:8px}
+  #stopList{margin-bottom:10px}
+  .stop-row{cursor:pointer;font-size:14px}
+  .stop-dot{width:22px;height:22px;border-radius:50%;background:#f59e0b;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+  .zone-tag{color:var(--accent);font-weight:600}
   #trackInfo{font-size:14px;color:var(--muted);min-height:20px;margin-bottom:10px}
   .row{display:flex;gap:8px}
   .row .btn{padding:12px;font-size:15px}
@@ -157,6 +169,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
   <div id="map"></div>
   <div class="topbar">
     <div id="status">Завантаження…</div>
+    <button class="fab" id="zonesBtn" title="Зони"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></button>
     <button class="fab" id="fitBtn" title="Показати всі"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button class="fab" id="logoutBtn" title="Вийти"><svg viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11"/></svg></button>
   </div>
@@ -165,6 +178,23 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     <div id="listView">
       <div class="sheet-head"><h2>Транспорт</h2><span class="muted" id="count"></span></div>
       <div id="list"></div>
+    </div>
+    <div id="zoneView" class="hidden">
+      <div class="dhead">
+        <button class="fab" id="zBack" style="box-shadow:none;background:rgba(127,127,127,.12)"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <h3>Зони</h3>
+      </div>
+      <div id="zoneList"></div>
+      <div id="zoneForm" class="hidden">
+        <div class="hint" id="zHint">Торкніться карти там, де має бути центр зони</div>
+        <input class="inp" id="zName" placeholder="Назва, напр. Дім або Гараж">
+        <select class="inp" id="zRad">
+          <option value="100">Радіус 100 м</option><option value="200" selected>Радіус 200 м</option>
+          <option value="500">Радіус 500 м</option><option value="1000">Радіус 1 км</option><option value="3000">Радіус 3 км</option>
+        </select>
+        <div class="row"><button class="btn secondary" id="zCancel" type="button">Скасувати</button><button class="btn" id="zSave" type="button">Зберегти</button></div>
+      </div>
+      <button class="btn" id="zAdd" type="button" style="margin-top:10px">+ Додати зону</button>
     </div>
     <div id="detailView" class="hidden">
       <div id="detail">
@@ -179,6 +209,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
           <div class="stat wide"><div class="k">Вистачить заряду</div><div class="v" id="dEst">—</div><div class="k" id="dEstSub" style="margin-top:2px"></div></div>
           <div class="stat"><div class="k">Оновлено</div><div class="v" id="dTime">—</div></div>
           <div class="stat"><div class="k">Супутники</div><div class="v" id="dSats">—</div></div>
+          <div class="stat wide"><div class="k">Зона</div><div class="v" id="dZone">—</div><div class="k" id="dZoneSub" style="margin-top:2px;line-height:1.5"></div></div>
           <div class="stat wide"><div class="k">Координати</div><div class="v" id="dCoords" style="font-size:14px">—</div></div>
         </div>
         <details class="params"><summary>Усі датчики та параметри</summary><div id="dParams"></div></details>
@@ -189,6 +220,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
           <button data-r="7d">7 днів</button>
         </div>
         <div id="trackInfo"></div>
+        <div id="stopList"></div>
         <div class="row">
           <a class="btn secondary" id="navLink" target="_blank" rel="noopener">Відкрити в Картах</a>
         </div>
@@ -297,7 +329,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     let start = 0;
     for(let i=1;i<pts.length;i++){ if(pts[i][1] - pts[i-1][1] >= 8) start = i; }   // last recharge
     pts = pts.slice(start);
-    const res = {at:Date.now(), n:pts.length};
+    const res = {at:Date.now(), n:pts.length, pos:(data.messages || []).filter(m => m.pos && m.pos.y).map(m => [m.t, m.pos.y, m.pos.x])};
     if(pts.length < 3 || pts[pts.length-1][0] - pts[0][0] < 12*3600){ res.state = 'few'; return est[id] = res; }
     const t0 = pts[0][0], n = pts.length; let sx=0, sy=0, sxx=0, sxy=0;
     for(const [t,y] of pts){ const x = (t - t0)/86400; sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; }
@@ -403,6 +435,12 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap'
     }).addTo(map);
+    map.on('click', e => {
+      if(!pickingZone) return;
+      zoneDraft = e.latlng; drawDraft();
+      $('zHint').textContent = 'Місце обрано. Торкніться ще раз, щоб змінити';
+    });
+    drawZones();
   }
 
   function enterApp(){
@@ -441,6 +479,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
 
   function updateMarker(u){
     const p = u.getPosition(); if(!p) return;
+    checkZone(u);
     const id = u.getId();
     const icon = L.divIcon({html: markerHtml(u), className:'', iconSize:[34,34], iconAnchor:[17,17]});
     if(markers[id]){ markers[id].setLatLng([p.y, p.x]).setIcon(icon); }
@@ -466,7 +505,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
       const p = u.getPosition(), st = state(p), img = iconUrl(u);
       return `<button class="unit ${u.getId()===selectedId?'sel':''}" data-id="${u.getId()}">
         ${img?`<img src="${esc(img)}" alt="">`:'<div class="ph"></div>'}
-        <div class="meta"><div class="name">${esc(u.getName())}</div><div class="sub">${p?ago(p.t):'немає даних'}${batHtml(u)}</div></div>
+        <div class="meta"><div class="name">${esc(u.getName())}</div><div class="sub">${p?ago(p.t):'немає даних'}${batHtml(u)}${zoneTag(u)}</div></div>
         <span class="pill ${st.cls}">${st.text}</span></button>`;
     }).join('') : '<p class="sub" style="padding:8px">Немає доступних об’єктів</p>';
   }
@@ -476,6 +515,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     selectedId = id;
     const u = sess.getItem(id); if(!u) return;
     $('listView').classList.add('hidden');
+    $('zoneView').classList.add('hidden');
     $('detailView').classList.remove('hidden');
     $('sheet').classList.remove('collapsed', 'min');
     document.querySelectorAll('#seg button').forEach(b => b.classList.remove('on'));
@@ -507,6 +547,11 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     const pr = (lastMsg(u) || {}).p || {};
     Object.keys(pr).sort().forEach(k => rows.push([k, String(pr[k])]));
     $('dParams').innerHTML = rows.length ? rows.map(r => `<div class="prow"><span>${esc(r[0])}</span><span>${esc(r[1])}</span></div>`).join('') : '<div class="prow"><span>Немає даних</span><span></span></div>';
+    if(p){
+      const z = zoneOf(p.y, p.x);
+      $('dZone').innerHTML = z ? `<span class="zone-tag">${esc(z.name)}</span>` : (zones.length ? 'Поза зонами' : '<span style="font-size:14px;color:var(--muted);font-weight:500">Зон ще немає. Додайте кнопкою з міткою вгорі</span>');
+    } else $('dZone').textContent = '—';
+    $('dZoneSub').innerHTML = zoneEvents(u.getId()).slice(-3).reverse().map(e => `${e.type === 'in' ? '↘ заїхало в' : '↗ виїхало з'} «${esc(e.z.name)}» · ${fmtTime(e.t)}`).join('<br>');
     $('dSpeed').textContent = p ? p.s+' км/год' : '—';
     $('dTime').textContent = p ? fmtTime(p.t) : '—';
     $('dSats').textContent = p && p.sc!=null ? p.sc : '—';
@@ -528,7 +573,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
   $('grab').addEventListener('click', () => setMin(!$('sheet').classList.contains('min')));
 
   /* ---------- tracks ---------- */
-  function clearTrack(){ if(trackLayer){ map.removeLayer(trackLayer); trackLayer = null; } }
+  function clearTrack(){ if(trackLayer){ map.removeLayer(trackLayer); trackLayer = null; } const sl = document.getElementById('stopList'); if(sl) sl.innerHTML = ''; lastStops = []; }
 
   function range(r){
     const now = new Date(), sod = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -552,7 +597,8 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
         return d;
       });
       if(id !== selectedId) return;
-      const pts = (data.messages||[]).map(m => m.pos).filter(p => p && p.y && p.x);
+      const msgs = (data.messages||[]).filter(m => m.pos && m.pos.y && m.pos.x);
+      const pts = msgs.map(m => m.pos);
       if(pts.length < 2){ $('trackInfo').textContent = 'За цей період поїздок немає'; return; }
       let dist = 0, maxS = 0;
       for(let i=1;i<pts.length;i++){ const d = km(pts[i-1], pts[i]); if(d < 5) dist += d; maxS = Math.max(maxS, pts[i].s||0); }
@@ -564,9 +610,143 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
         L.circleMarker(ll[ll.length-1], {radius:6, color:'#fff', weight:2, fillColor:'#dc2626', fillOpacity:1})
       ]).addTo(map);
       map.fitBounds(trackLayer.getBounds(), {padding:[40,40], paddingBottomRight:[40, $('sheet').offsetHeight]});
-      $('trackInfo').textContent = `Пробіг ≈ ${dist.toFixed(1)} км · макс. ${maxS} км/год · ${pts.length} точок`;
+      const stops = findStops(msgs, to);
+      stops.forEach((s, i) => trackLayer.addLayer(L.marker([s.y, s.x], {icon: L.divIcon({className:'', html:`<div class="stop-dot">${i+1}</div>`, iconSize:[22,22], iconAnchor:[11,11]})})
+        .bindPopup(`<b>Стоянка ${i+1}</b><br>${fmtTime(s.from)} – ${s.open ? 'зараз' : fmtTime(s.to)}<br>${fmtDur(s.to - s.from)}${stopZone(s) ? '<br>Зона: ' + esc(stopZone(s)) : ''}`)));
+      const stopSec = stops.reduce((a, s) => a + (s.to - s.from), 0);
+      const span = msgs[msgs.length-1].t - msgs[0].t;
+      $('trackInfo').textContent = `Пробіг ≈ ${dist.toFixed(1)} км · макс. ${maxS} км/год · стоянок: ${stops.length} · у дорозі ≈ ${fmtDur(Math.max(0, span - stopSec))}`;
+      lastStops = stops;
+      $('stopList').innerHTML = stops.length ? '<div style="font-size:13px;color:var(--muted);margin:4px 0">Стоянки (торкніться, щоб показати)</div>' + stops.map((s, i) =>
+        `<div class="stop-row" data-i="${i}"><div class="stop-dot">${i+1}</div><div style="flex:1;min-width:0">${fmtTime(s.from)} – ${s.open ? 'зараз' : fmtTime(s.to)}${stopZone(s) ? ' · <span class="zone-tag">' + esc(stopZone(s)) + '</span>' : ''}</div><b>${fmtDur(s.to - s.from)}</b></div>`).join('') : '';
     }catch(code){
       $('trackInfo').textContent = 'Не вдалося завантажити: ' + errText(code);
+    }
+  });
+
+  /* ---------- stops ---------- */
+  let lastStops = [];
+  function fmtDur(sec){
+    const m = Math.round(sec/60); if(m < 60) return m + ' хв';
+    const h = Math.floor(m/60); if(h < 24) return h + ' год ' + (m % 60) + ' хв';
+    return Math.floor(h/24) + ' дн ' + (h % 24) + ' год';
+  }
+  function findStops(msgs, endT){
+    const res = [], MIN = 5*60, R = 100, nowT = Math.floor(Date.now()/1000);
+    let i = 0;
+    while(i < msgs.length){
+      const a = msgs[i]; let j = i;
+      while(j + 1 < msgs.length && distM(a.pos.y, a.pos.x, msgs[j+1].pos.y, msgs[j+1].pos.x) <= R) j++;
+      const hasNext = j + 1 < msgs.length;
+      const toT = hasNext ? msgs[j+1].t : Math.min(endT, nowT);
+      if(toT - a.t >= MIN && (j > i || (a.pos.s || 0) <= 3)){
+        res.push({y:a.pos.y, x:a.pos.x, from:a.t, to:toT, open: !hasNext && nowT - endT < 120});
+      }
+      i = j + 1;
+    }
+    return res;
+  }
+  function stopZone(s){ const z = zoneOf(s.y, s.x); return z ? z.name : ''; }
+  $('stopList').addEventListener('click', e => {
+    const r = e.target.closest('.stop-row'); if(!r) return;
+    const s = lastStops[+r.dataset.i]; if(s){ map.setView([s.y, s.x], 16); setMin(true); }
+  });
+
+  /* ---------- zones ---------- */
+  let zones = [];
+  try{ zones = JSON.parse(LS.get('zones') || '[]') || []; }catch(e){ zones = []; }
+  let zoneLayer = null, zoneDraft = null, zoneDraftCircle = null, pickingZone = false;
+  const curZone = {};
+  function saveZones(){ LS.set('zones', JSON.stringify(zones)); }
+  function distM(lat1, lon1, lat2, lon2){ return km({y:lat1, x:lon1}, {y:lat2, x:lon2}) * 1000; }
+  function zoneOf(y, x){
+    let best = null;
+    for(const z of zones){ const d = distM(y, x, z.lat, z.lon); if(d <= z.r && (!best || d < best.d)) best = {z, d}; }
+    return best ? best.z : null;
+  }
+  function zoneTag(u){ const p = u.getPosition(); const z = p && zoneOf(p.y, p.x); return z ? ` · <span class="zone-tag">${esc(z.name)}</span>` : ''; }
+  function drawZones(){
+    if(!map) return;
+    if(zoneLayer) map.removeLayer(zoneLayer);
+    zoneLayer = L.layerGroup(zones.map(z => L.circle([z.lat, z.lon], {radius:z.r, color:'#1f6feb', weight:2, fillOpacity:.08})
+      .bindTooltip(esc(z.name), {permanent:true, direction:'center'}))).addTo(map);
+  }
+  function zoneEvents(id){
+    const pts = (est[id] && est[id].pos) || [], ev = [];
+    let prev;
+    for(const [t, y, x] of pts){
+      const z = zoneOf(y, x), zn = z ? z.id : null;
+      if(prev !== undefined && zn !== prev){
+        const oz = prev && zones.find(q => q.id === prev);
+        if(oz) ev.push({t, type:'out', z:oz});
+        if(z) ev.push({t, type:'in', z});
+      }
+      prev = zn;
+    }
+    return ev;
+  }
+  function resetZoneState(){ units.forEach(u => { const p = u.getPosition(); if(p){ const z = zoneOf(p.y, p.x); curZone[u.getId()] = z ? z.id : null; } }); }
+  function checkZone(u){
+    const p = u.getPosition(); if(!p) return;
+    const id = u.getId(), z = zoneOf(p.y, p.x), zn = z ? z.id : null;
+    if(id in curZone && curZone[id] !== zn){
+      const oz = curZone[id] && zones.find(q => q.id === curZone[id]);
+      if(oz) toast(`${u.getName()} виїхало із зони «${oz.name}»`, 7000);
+      if(z) toast(`${u.getName()} заїхало в зону «${z.name}»`, 7000);
+    }
+    curZone[id] = zn;
+  }
+  function showZones(){
+    selectedId = null; clearTrack(); stopZoneForm(); renderZones();
+    ['listView','detailView'].forEach(v => $(v).classList.add('hidden'));
+    $('zoneView').classList.remove('hidden');
+    $('sheet').classList.remove('collapsed', 'min');
+  }
+  function renderZones(){
+    $('zoneList').innerHTML = zones.length ? zones.map(z => {
+      const inside = units.filter(u => { const p = u.getPosition(); return p && distM(p.y, p.x, z.lat, z.lon) <= z.r; }).map(u => u.getName());
+      const rad = z.r >= 1000 ? (z.r/1000) + ' км' : z.r + ' м';
+      return `<div class="zone-row" data-id="${esc(z.id)}"><div class="zn">${esc(z.name)}<div class="zs">${rad} · ${inside.length ? 'тут: ' + esc(inside.join(', ')) : 'порожньо'}</div></div>
+        <button class="mini-btn" data-act="show" type="button">Показати</button><button class="mini-btn danger" data-act="del" type="button">Видалити</button></div>`;
+    }).join('') : '<p style="color:var(--muted);font-size:14px;margin:4px 0">Зон ще немає. Додайте, наприклад, «Дім» або «Гараж». Застосунок покаже, хто в зоні, і повідомить, коли авто заїде чи виїде, поки застосунок відкритий.</p>';
+  }
+  function startZoneForm(){
+    pickingZone = true; zoneDraft = null;
+    $('zoneForm').classList.remove('hidden'); $('zAdd').classList.add('hidden');
+    $('zName').value = ''; $('zHint').textContent = 'Торкніться карти там, де має бути центр зони';
+  }
+  function stopZoneForm(){
+    pickingZone = false; zoneDraft = null;
+    if(zoneDraftCircle && map){ map.removeLayer(zoneDraftCircle); } zoneDraftCircle = null;
+    $('zoneForm').classList.add('hidden'); $('zAdd').classList.remove('hidden');
+  }
+  function drawDraft(){
+    if(!zoneDraft) return;
+    const r = +$('zRad').value;
+    if(zoneDraftCircle) zoneDraftCircle.setLatLng(zoneDraft).setRadius(r);
+    else zoneDraftCircle = L.circle(zoneDraft, {radius:r, color:'#f59e0b', weight:2, dashArray:'6 6', fillOpacity:.12}).addTo(map);
+  }
+  $('zonesBtn').addEventListener('click', showZones);
+  $('zBack').addEventListener('click', () => {
+    stopZoneForm(); $('zoneView').classList.add('hidden'); $('listView').classList.remove('hidden'); renderList();
+  });
+  $('zAdd').addEventListener('click', startZoneForm);
+  $('zCancel').addEventListener('click', stopZoneForm);
+  $('zRad').addEventListener('change', drawDraft);
+  $('zSave').addEventListener('click', () => {
+    if(!zoneDraft){ $('zHint').textContent = 'Спершу торкніться карти, щоб обрати місце'; return; }
+    const name = $('zName').value.trim() || ('Зона ' + (zones.length + 1));
+    zones.push({id:String(Date.now()), name, lat:zoneDraft.lat, lon:zoneDraft.lng, r:+$('zRad').value});
+    saveZones(); stopZoneForm(); drawZones(); resetZoneState(); renderZones(); renderList();
+    toast(`Зону «${name}» збережено`);
+  });
+  $('zoneList').addEventListener('click', e => {
+    const b = e.target.closest('button'); if(!b) return;
+    const id = b.closest('.zone-row').dataset.id, z = zones.find(q => q.id === id); if(!z) return;
+    if(b.dataset.act === 'show'){ map.setView([z.lat, z.lon], z.r > 1000 ? 13 : 16); setMin(true); }
+    else if(b.dataset.act === 'del'){
+      if(b.dataset.confirm){ zones = zones.filter(q => q.id !== id); saveZones(); drawZones(); resetZoneState(); renderZones(); renderList(); }
+      else { b.dataset.confirm = '1'; b.textContent = 'Точно?'; }
     }
   });
 
