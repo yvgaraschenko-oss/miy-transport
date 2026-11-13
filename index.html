@@ -71,7 +71,15 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     box-shadow:var(--sheet-shadow);max-height:62vh;display:flex;flex-direction:column;
     padding-bottom:env(safe-area-inset-bottom);transition:max-height .25s ease}
   #sheet.collapsed{max-height:calc(118px + env(safe-area-inset-bottom))}
-  .grab{padding:8px 0 4px;display:flex;justify-content:center}
+  .grab{position:relative;padding:8px 0 4px;min-height:44px;display:flex;justify-content:center;align-items:flex-start;cursor:pointer}
+  .grab .tog{position:absolute;right:12px;top:6px;width:40px;height:32px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:rgba(127,127,127,.14)}
+  .grab .tog svg{width:20px;height:20px;stroke:var(--fg);fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+  #miniLabel{display:none;position:absolute;left:16px;top:12px;max-width:65%;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #sheet.min{max-height:calc(48px + env(safe-area-inset-bottom))}
+  #sheet.min #listView,#sheet.min #detailView{display:none!important}
+  #sheet.min #miniLabel{display:block}
+  #sheet.min .grab i{visibility:hidden}
+  #sheet.min .grab .tog svg{transform:rotate(180deg)}
   .grab i{width:38px;height:5px;border-radius:3px;background:var(--line)}
   .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:2px 16px 8px}
   .sheet-head h2{margin:0;font-size:20px;letter-spacing:-.01em}
@@ -153,7 +161,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     <button class="fab" id="logoutBtn" title="Вийти"><svg viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11"/></svg></button>
   </div>
   <div id="sheet">
-    <div class="grab" id="grab"><i></i></div>
+    <div class="grab" id="grab"><i></i><span id="miniLabel"></span><button class="tog" id="togBtn" aria-label="Сховати або показати панель"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></div>
     <div id="listView">
       <div class="sheet-head"><h2>Транспорт</h2><span class="muted" id="count"></span></div>
       <div id="list"></div>
@@ -166,7 +174,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
           <span class="pill" id="dPill"></span>
         </div>
         <div class="grid">
-          <div class="stat"><div class="k">Акумулятор</div><div class="v" id="dBat">—</div></div>
+          <div class="stat"><div class="k" id="dBatK">Акумулятор</div><div class="v" id="dBat">—</div></div>
           <div class="stat"><div class="k">Швидкість</div><div class="v" id="dSpeed">—</div></div>
           <div class="stat"><div class="k">Оновлено</div><div class="v" id="dTime">—</div></div>
           <div class="stat"><div class="k">Супутники</div><div class="v" id="dSats">—</div></div>
@@ -249,16 +257,19 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     return out;
   }
   function battery(u){
-    const s = sensorReadings(u).find(r => r.type === 'voltage' || /акб|акум|батар|напруг|живлен|battery|voltage|power/i.test(r.name));
-    if(s) return {v:s.value, src:s.name};
+    const c = [];
+    sensorReadings(u).forEach(r => { if(r.type === 'voltage' || /акб|акум|батар|напруг|живлен|battery|voltage|power/i.test(r.name)) c.push({v:r.value, src:r.name}); });
     const p = (lastMsg(u) || {}).p || {};
-    for(const k of PWR_KEYS){ if(p[k] != null){ const v = volts(p[k]); if(v != null) return {v, src:k}; } }
-    return null;
+    PWR_KEYS.concat(['pwr_int','int_voltage','vbat_int','bat_voltage']).forEach(k => { if(p[k] != null){ const v = volts(p[k]); if(v != null) c.push({v, src:k}); } });
+    const car = c.find(x => x.v >= 6);
+    if(car) return car;
+    const trk = c.find(x => x.v > 0);
+    return trk ? Object.assign({tracker:true}, trk) : null;
   }
-  function batLow(v){ return v > 18 ? v < 23.6 : v < 11.8; }
+  function batLow(b){ return b.tracker ? b.v < 3.5 : (b.v > 18 ? b.v < 23.6 : b.v < 11.8); }
   function batHtml(u){
     const b = battery(u); if(!b) return '';
-    return ` · <span class="${batLow(b.v)?'bat-low':''}">🔋 ${b.v} В</span>`;
+    return ` · <span class="${batLow(b)?'bat-low':''}">${b.tracker ? 'трекер ' : '🔋 '}${b.v} В</span>`;
   }
   function remote(svc, params){
     return new Promise((res, rej) => wialon.core.Remote.getInstance().remoteCall(svc, params, (code, data) => code ? rej(code) : res(data)));
@@ -412,7 +423,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     const u = sess.getItem(id); if(!u) return;
     $('listView').classList.add('hidden');
     $('detailView').classList.remove('hidden');
-    $('sheet').classList.remove('collapsed');
+    $('sheet').classList.remove('collapsed', 'min');
     document.querySelectorAll('#seg button').forEach(b => b.classList.remove('on'));
     $('trackInfo').textContent = 'Оберіть період, щоб показати маршрут';
     clearTrack();
@@ -427,7 +438,8 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     $('dName').textContent = u.getName();
     $('dPill').className = 'pill '+st.cls; $('dPill').textContent = st.text;
     const b = battery(u);
-    $('dBat').innerHTML = b ? `<span class="${batLow(b.v)?'bat-low':''}">${b.v} В</span>` : '—';
+    $('dBatK').textContent = b && b.tracker ? 'Батарея трекера' : 'Акумулятор авто';
+    $('dBat').innerHTML = b ? `<span class="${batLow(b)?'bat-low':''}">${b.v} В</span>` : '—';
     const rows = sensorReadings(u).map(r => [r.name, r.value + (r.unit ? ' ' + r.unit : '')]);
     const pr = (lastMsg(u) || {}).p || {};
     Object.keys(pr).sort().forEach(k => rows.push([k, String(pr[k])]));
@@ -444,7 +456,13 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     $('detailView').classList.add('hidden'); $('listView').classList.remove('hidden');
     renderList();
   });
-  $('grab').addEventListener('click', () => $('sheet').classList.toggle('collapsed'));
+  function setMin(on){
+    $('sheet').classList.remove('collapsed');
+    $('sheet').classList.toggle('min', on);
+    const u = selectedId && sess && sess.getItem(selectedId);
+    $('miniLabel').textContent = on ? (u ? u.getName() : 'Транспорт') : '';
+  }
+  $('grab').addEventListener('click', () => setMin(!$('sheet').classList.contains('min')));
 
   /* ---------- tracks ---------- */
   function clearTrack(){ if(trackLayer){ map.removeLayer(trackLayer); trackLayer = null; } }
