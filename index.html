@@ -100,6 +100,13 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
   .seg{display:flex;gap:6px;margin-bottom:10px}
   .seg button{flex:1;padding:10px 4px;border-radius:10px;background:rgba(127,127,127,.12);font-size:14px;font-weight:600}
   .seg button.on{background:var(--accent);color:#fff}
+  .bat-low{color:var(--err);font-weight:600}
+  .stat.wide{grid-column:span 2}
+  details.params{margin:0 0 12px;font-size:14px}
+  details.params summary{color:var(--accent);cursor:pointer;padding:4px 0 8px;font-weight:600}
+  .prow{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .prow span:first-child{color:var(--muted);word-break:break-all}
+  .prow span:last-child{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
   #trackInfo{font-size:14px;color:var(--muted);min-height:20px;margin-bottom:10px}
   .row{display:flex;gap:8px}
   .row .btn{padding:12px;font-size:15px}
@@ -159,11 +166,13 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
           <span class="pill" id="dPill"></span>
         </div>
         <div class="grid">
+          <div class="stat"><div class="k">Акумулятор</div><div class="v" id="dBat">—</div></div>
           <div class="stat"><div class="k">Швидкість</div><div class="v" id="dSpeed">—</div></div>
           <div class="stat"><div class="k">Оновлено</div><div class="v" id="dTime">—</div></div>
           <div class="stat"><div class="k">Супутники</div><div class="v" id="dSats">—</div></div>
-          <div class="stat"><div class="k">Координати</div><div class="v" id="dCoords" style="font-size:14px">—</div></div>
+          <div class="stat wide"><div class="k">Координати</div><div class="v" id="dCoords" style="font-size:14px">—</div></div>
         </div>
+        <details class="params"><summary>Усі датчики та параметри</summary><div id="dParams"></div></details>
         <div class="seg" id="seg">
           <button data-r="today">Сьогодні</button>
           <button data-r="yesterday">Вчора</button>
@@ -221,6 +230,35 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     const R=6371, toR=Math.PI/180, dLat=(b.y-a.y)*toR, dLon=(b.x-a.x)*toR;
     const h=Math.sin(dLat/2)**2+Math.cos(a.y*toR)*Math.cos(b.y*toR)*Math.sin(dLon/2)**2;
     return 2*R*Math.asin(Math.sqrt(h));
+  }
+  const PWR_KEYS = ['pwr_ext','power','ext_voltage','ext_power','external_voltage','vbat_ext','pwr','battery_voltage','vbat'];
+  const BAD = -348201.3876;
+  function volts(v){ v = Number(v); if(!isFinite(v)) return null; if(v > 100) v = v/1000; return Math.round(v*10)/10; }
+  function lastMsg(u){ try{ return u.getLastMessage(); }catch(e){ return null; } }
+  function sensorReadings(u){
+    const out = [], lm = lastMsg(u); if(!lm) return out;
+    try{
+      const ss = u.getSensors() || {};
+      for(const k in ss){
+        const s = ss[k]; let v;
+        try{ v = u.calculateSensorValue(s, lm); }catch(e){ continue; }
+        if(v === undefined || v === null || v === BAD || typeof v !== 'number' || !isFinite(v)) continue;
+        out.push({name:s.n, value:Math.round(v*100)/100, unit:s.m||'', type:s.t});
+      }
+    }catch(e){}
+    return out;
+  }
+  function battery(u){
+    const s = sensorReadings(u).find(r => r.type === 'voltage' || /акб|акум|батар|напруг|живлен|battery|voltage|power/i.test(r.name));
+    if(s) return {v:s.value, src:s.name};
+    const p = (lastMsg(u) || {}).p || {};
+    for(const k of PWR_KEYS){ if(p[k] != null){ const v = volts(p[k]); if(v != null) return {v, src:k}; } }
+    return null;
+  }
+  function batLow(v){ return v > 18 ? v < 23.6 : v < 11.8; }
+  function batHtml(u){
+    const b = battery(u); if(!b) return '';
+    return ` · <span class="${batLow(b.v)?'bat-low':''}">🔋 ${b.v} В</span>`;
   }
   function remote(svc, params){
     return new Promise((res, rej) => wialon.core.Remote.getInstance().remoteCall(svc, params, (code, data) => code ? rej(code) : res(data)));
@@ -310,14 +348,15 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     initMap();
     setTimeout(() => map.invalidateSize(), 50);
     const U = wialon.item.Unit, I = wialon.item.Item;
-    const flags = I.dataFlag.base | U.dataFlag.lastMessage;
+    const flags = I.dataFlag.base | U.dataFlag.lastMessage | U.dataFlag.sensors;
     sess.loadLibrary('itemIcon');
+    try{ sess.loadLibrary('unitSensors'); }catch(e){}
     sess.updateDataFlags([{type:'type', data:'avl_unit', flags, mode:0}], code => {
       if(code){ $('status').textContent = errText(code); return; }
       units = (sess.getItems('avl_unit') || []).slice().sort((a,b) => a.getName().localeCompare(b.getName(), 'uk'));
       units.forEach(u => {
         u.addListener('changePosition', () => { updateMarker(u); renderList(); if(u.getId()===selectedId) renderDetail(); });
-        u.addListener('changeLastMessage', () => { if(u.getId()===selectedId) renderDetail(); });
+        u.addListener('changeLastMessage', () => { renderList(); if(u.getId()===selectedId) renderDetail(); });
         updateMarker(u);
       });
       renderList();
@@ -362,7 +401,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
       const p = u.getPosition(), st = state(p), img = iconUrl(u);
       return `<button class="unit ${u.getId()===selectedId?'sel':''}" data-id="${u.getId()}">
         ${img?`<img src="${esc(img)}" alt="">`:'<div class="ph"></div>'}
-        <div class="meta"><div class="name">${esc(u.getName())}</div><div class="sub">${p?ago(p.t):'немає даних'}</div></div>
+        <div class="meta"><div class="name">${esc(u.getName())}</div><div class="sub">${p?ago(p.t):'немає даних'}${batHtml(u)}</div></div>
         <span class="pill ${st.cls}">${st.text}</span></button>`;
     }).join('') : '<p class="sub" style="padding:8px">Немає доступних об’єктів</p>';
   }
@@ -387,6 +426,12 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     const p = u.getPosition(), st = state(p);
     $('dName').textContent = u.getName();
     $('dPill').className = 'pill '+st.cls; $('dPill').textContent = st.text;
+    const b = battery(u);
+    $('dBat').innerHTML = b ? `<span class="${batLow(b.v)?'bat-low':''}">${b.v} В</span>` : '—';
+    const rows = sensorReadings(u).map(r => [r.name, r.value + (r.unit ? ' ' + r.unit : '')]);
+    const pr = (lastMsg(u) || {}).p || {};
+    Object.keys(pr).sort().forEach(k => rows.push([k, String(pr[k])]));
+    $('dParams').innerHTML = rows.length ? rows.map(r => `<div class="prow"><span>${esc(r[0])}</span><span>${esc(r[1])}</span></div>`).join('') : '<div class="prow"><span>Немає даних</span><span></span></div>';
     $('dSpeed').textContent = p ? p.s+' км/год' : '—';
     $('dTime').textContent = p ? fmtTime(p.t) : '—';
     $('dSats').textContent = p && p.sc!=null ? p.sc : '—';
