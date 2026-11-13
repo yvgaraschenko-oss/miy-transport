@@ -109,6 +109,10 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
   .seg{display:flex;gap:6px;margin-bottom:10px}
   .seg button{flex:1;padding:10px 4px;border-radius:10px;background:rgba(127,127,127,.12);font-size:14px;font-weight:600}
   .seg button.on{background:var(--accent);color:#fff}
+  .seg .datebtn{flex:1;position:relative;padding:10px 4px;border-radius:10px;background:rgba(127,127,127,.12);font-size:14px;font-weight:600;text-align:center;overflow:hidden;white-space:nowrap}
+  .seg .datebtn.on{background:var(--accent);color:#fff}
+  .seg .datebtn input{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;border:0;margin:0;padding:0;-webkit-appearance:none;appearance:none}
+  .seg button{white-space:nowrap}
   .bat-low{color:var(--err);font-weight:600}
   .stat.wide{grid-column:span 2}
   details.params{margin:0 0 12px;font-size:14px}
@@ -205,10 +209,10 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
           <span class="pill" id="dPill"></span>
         </div>
         <div class="seg" id="seg">
+          <button data-r="now">📍 Зараз</button>
           <button data-r="today">Сьогодні</button>
           <button data-r="yesterday">Вчора</button>
-          <button data-r="7d">7 днів</button>
-          <button data-r="30d">Місяць</button>
+          <label class="datebtn" id="dateBtn"><span id="dateLbl">📅 Дата</span><input type="date" id="datePick" aria-label="Обрати дату"></label>
         </div>
         <div id="trackInfo"></div>
         <div id="stopList"></div>
@@ -521,8 +525,10 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     $('zoneView').classList.add('hidden');
     $('detailView').classList.remove('hidden');
     $('sheet').classList.remove('collapsed', 'min');
-    document.querySelectorAll('#seg button').forEach(b => b.classList.remove('on'));
-    $('trackInfo').textContent = 'Оберіть період, щоб показати маршрут';
+    markSeg(document.querySelector('#seg button[data-r="now"]'));
+    $('dateLbl').textContent = '📅 Дата'; $('datePick').value = '';
+    const nd = new Date(); $('datePick').max = nd.getFullYear() + '-' + String(nd.getMonth()+1).padStart(2,'0') + '-' + String(nd.getDate()).padStart(2,'0');
+    $('trackInfo').textContent = 'Де техніка зараз. Для маршруту оберіть день';
     clearTrack();
     renderDetail();
     const p = u.getPosition();
@@ -589,10 +595,30 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     return [s(sod) - 6*86400, s(now)];
   }
 
-  $('seg').addEventListener('click', async e => {
+  function markSeg(el){ document.querySelectorAll('#seg button, #seg .datebtn').forEach(x => x.classList.toggle('on', x === el)); }
+  function showNow(){
+    clearTrack();
+    const u = sess.getItem(selectedId), p = u && u.getPosition();
+    if(p) map.setView([p.y, p.x], 17);
+    $('trackInfo').textContent = p ? `Зараз тут · оновлено ${fmtTime(p.t)} (${ago(p.t)})` : 'Немає координат';
+  }
+  $('datePick').addEventListener('change', () => {
+    const v = $('datePick').value; if(!v || !selectedId) return;
+    const [Y, M, D] = v.split('-').map(Number), d0 = new Date(Y, M-1, D);
+    const from = Math.floor(d0.getTime()/1000), to = Math.min(from + 86399, Math.floor(Date.now()/1000));
+    $('dateLbl').textContent = '📅 ' + d0.toLocaleDateString('uk-UA', {day:'2-digit', month:'2-digit'});
+    markSeg($('dateBtn'));
+    loadTrack(from, to);
+  });
+  $('seg').addEventListener('click', e => {
     const b = e.target.closest('button'); if(!b || !selectedId) return;
-    document.querySelectorAll('#seg button').forEach(x => x.classList.toggle('on', x===b));
-    const [from, to] = range(b.dataset.r), id = selectedId;
+    markSeg(b);
+    if(b.dataset.r === 'now') return showNow();
+    const [from, to] = range(b.dataset.r);
+    loadTrack(from, to);
+  });
+  async function loadTrack(from, to){
+    const id = selectedId;
     $('trackInfo').textContent = 'Завантаження маршруту…';
     clearTrack();
     try{
@@ -628,7 +654,7 @@ var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendC
     }catch(code){
       $('trackInfo').textContent = 'Не вдалося завантажити: ' + errText(code);
     }
-  });
+  }
 
   /* ---------- stops ---------- */
   let lastStops = [];
