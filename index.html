@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Мій транспорт">
+<meta name="theme-color" content="#ffffff">
+<link rel="apple-touch-icon" id="ati">
+<script>
+(function(){try{var c=document.createElement('canvas');c.width=c.height=180;var g=c.getContext('2d');
+g.fillStyle='#1f6feb';g.fillRect(0,0,180,180);g.fillStyle='#fff';
+g.beginPath();g.arc(90,76,36,0,Math.PI*2);g.fill();
+g.beginPath();g.moveTo(59,94);g.lineTo(121,94);g.lineTo(90,144);g.closePath();g.fill();
+g.fillStyle='#1f6feb';g.beginPath();g.arc(90,76,15,0,Math.PI*2);g.fill();
+var u=c.toDataURL('image/png');document.getElementById('ati').href=u;
+var l=document.createElement('link');l.rel='icon';l.href=u;document.head.appendChild(l);}catch(e){}})();
+</script>
+<title>Мій транспорт</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --bg:#ffffff; --fg:#111418; --muted:#6b7280; --line:#e5e7eb; --card:#ffffff;
+    --accent:#1f6feb; --ok:#16a34a; --stop:#9ca3af; --warn:#f59e0b; --err:#dc2626;
+    --sheet-shadow:0 -8px 30px rgba(0,0,0,.12);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0f1115; --fg:#f3f4f6; --muted:#9ca3af; --line:#262a33; --card:#171a21; --sheet-shadow:0 -8px 30px rgba(0,0,0,.5); }
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font:16px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+  button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+  .hidden{display:none!important}
+
+  /* Login */
+  #login{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));background:var(--bg);z-index:50}
+  #login h1{font-size:30px;margin:0 0 6px;letter-spacing:-.02em}
+  #login p.sub{margin:0 0 28px;color:var(--muted)}
+  .field{display:block;margin-bottom:14px}
+  .field span{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  .field input{width:100%;padding:14px 14px;border-radius:12px;border:1px solid var(--line);
+    background:var(--card);color:var(--fg);font-size:17px;outline:none}
+  .field input:focus{border-color:var(--accent)}
+  .check{display:flex;align-items:center;gap:10px;margin:4px 0 22px;color:var(--muted);font-size:15px}
+  .check input{width:20px;height:20px;accent-color:var(--accent)}
+  .btn{width:100%;padding:15px;border-radius:12px;background:var(--accent);color:#fff;font-weight:600;font-size:17px}
+  .btn:disabled{opacity:.6}
+  .btn.secondary{background:transparent;color:var(--accent);border:1px solid var(--line)}
+  #loginErr{color:var(--err);min-height:22px;margin-top:12px;font-size:15px}
+  details.adv{margin-bottom:14px;color:var(--muted);font-size:14px}
+  details.adv summary{cursor:pointer;margin-bottom:10px}
+
+  /* Map + top bar */
+  #app{position:fixed;inset:0}
+  #map{position:absolute;inset:0;background:#e9eef3}
+  .topbar{position:absolute;left:0;right:0;top:0;z-index:20;display:flex;gap:8px;justify-content:flex-end;
+    padding:calc(10px + env(safe-area-inset-top)) 12px 0;pointer-events:none}
+  .fab{pointer-events:auto;width:44px;height:44px;border-radius:22px;background:var(--card);
+    box-shadow:0 2px 10px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center}
+  .fab svg{width:22px;height:22px;stroke:var(--fg);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  #status{pointer-events:auto;margin-right:auto;align-self:center;background:var(--card);border-radius:18px;
+    padding:8px 12px;font-size:13px;color:var(--muted);box-shadow:0 2px 10px rgba(0,0,0,.18)}
+  #status b{color:var(--fg);font-weight:600}
+
+  /* Bottom sheet */
+  #sheet{position:absolute;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-radius:18px 18px 0 0;
+    box-shadow:var(--sheet-shadow);max-height:62vh;display:flex;flex-direction:column;
+    padding-bottom:env(safe-area-inset-bottom);transition:max-height .25s ease}
+  #sheet.collapsed{max-height:calc(118px + env(safe-area-inset-bottom))}
+  .grab{padding:8px 0 4px;display:flex;justify-content:center}
+  .grab i{width:38px;height:5px;border-radius:3px;background:var(--line)}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;padding:2px 16px 8px}
+  .sheet-head h2{margin:0;font-size:20px;letter-spacing:-.01em}
+  .sheet-head .muted{color:var(--muted);font-size:14px}
+  #list{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 8px 8px}
+  .unit{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 8px;border-radius:12px}
+  .unit:active,.unit.sel{background:rgba(127,127,127,.12)}
+  .unit img{width:36px;height:36px;object-fit:contain;flex:none}
+  .unit .ph{width:36px;height:36px;border-radius:10px;background:rgba(127,127,127,.15);flex:none}
+  .unit .meta{flex:1;min-width:0}
+  .unit .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .unit .sub{color:var(--muted);font-size:13px}
+  .pill{font-size:13px;font-weight:600;padding:4px 9px;border-radius:999px;white-space:nowrap}
+  .pill.move{background:rgba(22,163,74,.14);color:var(--ok)}
+  .pill.stop{background:rgba(127,127,127,.15);color:var(--muted)}
+  .pill.old{background:rgba(245,158,11,.16);color:var(--warn)}
+
+  /* Detail */
+  #detail{padding:0 16px 12px;overflow-y:auto}
+  .dhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .dhead h3{margin:0;font-size:20px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .stat{background:rgba(127,127,127,.09);border-radius:12px;padding:10px 12px}
+  .stat .k{font-size:12px;color:var(--muted)}
+  .stat .v{font-size:17px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+  .seg{display:flex;gap:6px;margin-bottom:10px}
+  .seg button{flex:1;padding:10px 4px;border-radius:10px;background:rgba(127,127,127,.12);font-size:14px;font-weight:600}
+  .seg button.on{background:var(--accent);color:#fff}
+  #trackInfo{font-size:14px;color:var(--muted);min-height:20px;margin-bottom:10px}
+  .row{display:flex;gap:8px}
+  .row .btn{padding:12px;font-size:15px}
+  a.btn{display:block;text-align:center;text-decoration:none}
+
+  /* Map markers */
+  .vmark{position:relative}
+  .vmark .dot{width:34px;height:34px;border-radius:50%;background:#fff;border:3px solid var(--stop);
+    box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .vmark.move .dot{border-color:var(--ok)}
+  .vmark .dot img{width:24px;height:24px;object-fit:contain}
+  .vmark .arrow{position:absolute;left:50%;top:50%;width:0;height:0;margin-left:-6px;margin-top:-27px;
+    border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:9px solid var(--ok);transform-origin:6px 27px}
+  .vmark .lbl{position:absolute;top:38px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:12px;font-weight:600;
+    background:rgba(255,255,255,.92);color:#111;padding:2px 7px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+  .leaflet-control-attribution{font-size:10px}
+  .leaflet-bottom{bottom:calc(120px + env(safe-area-inset-bottom))}
+
+  #toast{position:fixed;left:50%;top:calc(64px + env(safe-area-inset-top));transform:translateX(-50%);z-index:60;
+    background:rgba(17,20,24,.92);color:#fff;padding:10px 14px;border-radius:12px;font-size:14px;max-width:90vw}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<section id="login" class="hidden">
+  <h1>Мій транспорт</h1>
+  <p class="sub">Вхід через ваш акаунт Moniterra</p>
+  <form id="loginForm" autocomplete="on">
+    <label class="field"><span>Логін</span>
+      <input id="user" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
+    <label class="field"><span>Пароль</span>
+      <input id="pass" name="password" type="password" autocomplete="current-password" required></label>
+    <details class="adv"><summary>Сервер</summary>
+      <label class="field"><input id="server" value="https://moniterra.services" autocapitalize="none" autocorrect="off" spellcheck="false"></label>
+    </details>
+    <label class="check"><input id="remember" type="checkbox" checked> Запам'ятати вхід на цьому телефоні</label>
+    <button class="btn" id="loginBtn" type="submit">Увійти</button>
+    <div id="loginErr"></div>
+  </form>
+</section>
+
+<!-- App -->
+<section id="app" class="hidden">
+  <div id="map"></div>
+  <div class="topbar">
+    <div id="status">Завантаження…</div>
+    <button class="fab" id="fitBtn" title="Показати всі"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    <button class="fab" id="logoutBtn" title="Вийти"><svg viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11"/></svg></button>
+  </div>
+  <div id="sheet">
+    <div class="grab" id="grab"><i></i></div>
+    <div id="listView">
+      <div class="sheet-head"><h2>Транспорт</h2><span class="muted" id="count"></span></div>
+      <div id="list"></div>
+    </div>
+    <div id="detailView" class="hidden">
+      <div id="detail">
+        <div class="dhead">
+          <button class="fab" id="backBtn" style="box-shadow:none;background:rgba(127,127,127,.12)"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <h3 id="dName"></h3>
+          <span class="pill" id="dPill"></span>
+        </div>
+        <div class="grid">
+          <div class="stat"><div class="k">Швидкість</div><div class="v" id="dSpeed">—</div></div>
+          <div class="stat"><div class="k">Оновлено</div><div class="v" id="dTime">—</div></div>
+          <div class="stat"><div class="k">Супутники</div><div class="v" id="dSats">—</div></div>
+          <div class="stat"><div class="k">Координати</div><div class="v" id="dCoords" style="font-size:14px">—</div></div>
+        </div>
+        <div class="seg" id="seg">
+          <button data-r="today">Сьогодні</button>
+          <button data-r="yesterday">Вчора</button>
+          <button data-r="3d">3 дні</button>
+          <button data-r="7d">7 днів</button>
+        </div>
+        <div id="trackInfo"></div>
+        <div class="row">
+          <a class="btn secondary" id="navLink" target="_blank" rel="noopener">Відкрити в Картах</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="toast" class="hidden"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const DEFAULT_SERVER = 'https://moniterra.services';
+  const LS = {
+    get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+    set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
+    del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+  };
+  const $ = id => document.getElementById(id);
+
+  let sess = null, map = null, markers = {}, units = [], selectedId = null, trackLayer = null, didFit = false;
+
+  /* ---------- helpers ---------- */
+  function toast(msg, ms=3500){ const t=$('toast'); t.textContent=msg; t.classList.remove('hidden'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.add('hidden'), ms); }
+  function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function ago(t){
+    if(!t) return 'немає даних';
+    const s = Math.max(0, Date.now()/1000 - t);
+    if(s < 60) return 'щойно';
+    if(s < 3600) return Math.floor(s/60)+' хв тому';
+    if(s < 86400) return Math.floor(s/3600)+' год тому';
+    return Math.floor(s/86400)+' дн тому';
+  }
+  function fmtTime(t){
+    if(!t) return '—';
+    const d = new Date(t*1000), now = new Date();
+    const hm = d.toLocaleTimeString('uk-UA',{hour:'2-digit',minute:'2-digit'});
+    return d.toDateString()===now.toDateString() ? hm : d.toLocaleDateString('uk-UA',{day:'2-digit',month:'2-digit'})+' '+hm;
+  }
+  function state(pos){
+    if(!pos) return {cls:'old', text:'Немає GPS'};
+    if(Date.now()/1000 - pos.t > 3*3600) return {cls:'old', text:'Офлайн'};
+    if(pos.s > 3) return {cls:'move', text:pos.s+' км/год'};
+    return {cls:'stop', text:'Стоїть'};
+  }
+  function km(a,b){ // haversine, km
+    const R=6371, toR=Math.PI/180, dLat=(b.y-a.y)*toR, dLon=(b.x-a.x)*toR;
+    const h=Math.sin(dLat/2)**2+Math.cos(a.y*toR)*Math.cos(b.y*toR)*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(h));
+  }
+  function remote(svc, params){
+    return new Promise((res, rej) => wialon.core.Remote.getInstance().remoteCall(svc, params, (code, data) => code ? rej(code) : res(data)));
+  }
+  function errText(code){
+    try{ return wialon.core.Errors.getErrorText(code) || ('Помилка '+code); }catch(e){ return 'Помилка '+code; }
+  }
+
+  /* ---------- SDK loading ---------- */
+  function loadSdk(server){
+    return new Promise((res, rej) => {
+      if(window.wialon) return res();
+      const s = document.createElement('script');
+      s.src = server.replace(/\/$/,'') + '/wsdk/script/wialon.js';
+      s.onload = () => res();
+      s.onerror = () => rej(new Error('Не вдалося підключитися до сервера'));
+      document.head.appendChild(s);
+    });
+  }
+
+  /* ---------- auth ---------- */
+  async function start(){
+    const server = LS.get('server') || DEFAULT_SERVER;
+    const token = LS.get('token');
+    const user = LS.get('user');
+    if(user) $('user').value = user;
+    $('server').value = server;
+    if(token){
+      try{
+        await loadSdk(server);
+        sess = wialon.core.Session.getInstance();
+        sess.initSession(server, 'MiyTransport');
+        const code = await new Promise(r => sess.loginToken(token, '', r));
+        if(!code) return enterApp();
+        LS.del('token');
+      }catch(e){}
+    }
+    showLogin();
+  }
+
+  function showLogin(msg){
+    $('app').classList.add('hidden');
+    $('login').classList.remove('hidden');
+    $('loginErr').textContent = msg || '';
+    $('loginBtn').disabled = false;
+  }
+
+  $('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const server = ($('server').value.trim() || DEFAULT_SERVER).replace(/\/$/,'');
+    const user = $('user').value.trim(), pass = $('pass').value;
+    $('loginBtn').disabled = true; $('loginErr').textContent = 'Вхід…';
+    try{
+      await loadSdk(server);
+      sess = wialon.core.Session.getInstance();
+      sess.initSession(server, 'MiyTransport');
+      const code = await new Promise(r => sess.login(user, pass, '', r));
+      if(code){
+        showLogin(code === 8 ? 'Неправильний логін або пароль' : errText(code));
+        return;
+      }
+      LS.set('server', server); LS.set('user', user);
+      $('pass').value = '';
+      if($('remember').checked){
+        // Create a long-lived token so the password itself is never stored
+        try{
+          const t = await remote('token/update', {callMode:'create', app:'MiyTransport', at:0, dur:0, fl:-1, p:'{}'});
+          if(t && t.h) LS.set('token', t.h);
+        }catch(err){ /* older servers may not support tokens — just skip */ }
+      }
+      enterApp();
+    }catch(err){
+      showLogin(err.message || String(err));
+    }
+  });
+
+  $('logoutBtn').addEventListener('click', () => {
+    LS.del('token');
+    try{ sess.logout(() => location.reload()); }catch(e){ location.reload(); }
+    setTimeout(() => location.reload(), 1500);
+  });
+
+  /* ---------- main app ---------- */
+  function initMap(){
+    if(map) return;
+    map = L.map('map', {zoomControl:false, attributionControl:true}).setView([49.0, 31.4], 6);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, subdomains:'abcd',
+      attribution: '&copy; OpenStreetMap, &copy; CARTO'
+    }).addTo(map);
+  }
+
+  function enterApp(){
+    $('login').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    initMap();
+    setTimeout(() => map.invalidateSize(), 50);
+    const U = wialon.item.Unit, I = wialon.item.Item;
+    const flags = I.dataFlag.base | U.dataFlag.lastMessage;
+    sess.loadLibrary('itemIcon');
+    sess.updateDataFlags([{type:'type', data:'avl_unit', flags, mode:0}], code => {
+      if(code){ $('status').textContent = errText(code); return; }
+      units = (sess.getItems('avl_unit') || []).slice().sort((a,b) => a.getName().localeCompare(b.getName(), 'uk'));
+      units.forEach(u => {
+        u.addListener('changePosition', () => { updateMarker(u); renderList(); if(u.getId()===selectedId) renderDetail(); });
+        u.addListener('changeLastMessage', () => { if(u.getId()===selectedId) renderDetail(); });
+        updateMarker(u);
+      });
+      renderList();
+      fitAll();
+    });
+    setInterval(() => { renderList(); if(selectedId) renderDetail(); }, 30000);
+  }
+
+  function iconUrl(u){ try{ return u.getIconUrl(32); }catch(e){ return ''; } }
+
+  function markerHtml(u){
+    const p = u.getPosition(), st = state(p);
+    const rot = p && st.cls==='move' ? `<div class="arrow" style="transform:rotate(${p.c||0}deg)"></div>` : '';
+    const img = iconUrl(u);
+    return `<div class="vmark ${st.cls}">${rot}<div class="dot">${img?`<img src="${esc(img)}">`:''}</div><div class="lbl">${esc(u.getName())}</div></div>`;
+  }
+
+  function updateMarker(u){
+    const p = u.getPosition(); if(!p) return;
+    const id = u.getId();
+    const icon = L.divIcon({html: markerHtml(u), className:'', iconSize:[34,34], iconAnchor:[17,17]});
+    if(markers[id]){ markers[id].setLatLng([p.y, p.x]).setIcon(icon); }
+    else{
+      markers[id] = L.marker([p.y, p.x], {icon}).addTo(map).on('click', () => select(id));
+    }
+    if(id === selectedId && !trackLayer) map.panTo([p.y, p.x]);
+  }
+
+  function fitAll(){
+    const pts = units.map(u => u.getPosition()).filter(Boolean).map(p => [p.y, p.x]);
+    if(!pts.length) return;
+    if(pts.length === 1) map.setView(pts[0], 15);
+    else map.fitBounds(pts, {padding:[50,50], maxZoom:15});
+  }
+  $('fitBtn').addEventListener('click', () => { clearTrack(); fitAll(); });
+
+  function renderList(){
+    const moving = units.filter(u => state(u.getPosition()).cls==='move').length;
+    $('count').textContent = units.length + ' од.';
+    $('status').innerHTML = `<b>${moving}</b> в русі · <b>${units.length - moving}</b> стоять`;
+    $('list').innerHTML = units.length ? units.map(u => {
+      const p = u.getPosition(), st = state(p), img = iconUrl(u);
+      return `<button class="unit ${u.getId()===selectedId?'sel':''}" data-id="${u.getId()}">
+        ${img?`<img src="${esc(img)}" alt="">`:'<div class="ph"></div>'}
+        <div class="meta"><div class="name">${esc(u.getName())}</div><div class="sub">${p?ago(p.t):'немає даних'}</div></div>
+        <span class="pill ${st.cls}">${st.text}</span></button>`;
+    }).join('') : '<p class="sub" style="padding:8px">Немає доступних об’єктів</p>';
+  }
+  $('list').addEventListener('click', e => { const b = e.target.closest('.unit'); if(b) select(+b.dataset.id); });
+
+  function select(id){
+    selectedId = id;
+    const u = sess.getItem(id); if(!u) return;
+    $('listView').classList.add('hidden');
+    $('detailView').classList.remove('hidden');
+    $('sheet').classList.remove('collapsed');
+    document.querySelectorAll('#seg button').forEach(b => b.classList.remove('on'));
+    $('trackInfo').textContent = 'Оберіть період, щоб показати маршрут';
+    clearTrack();
+    renderDetail();
+    const p = u.getPosition();
+    if(p) map.setView([p.y, p.x], Math.max(map.getZoom(), 15));
+  }
+
+  function renderDetail(){
+    const u = sess.getItem(selectedId); if(!u) return;
+    const p = u.getPosition(), st = state(p);
+    $('dName').textContent = u.getName();
+    $('dPill').className = 'pill '+st.cls; $('dPill').textContent = st.text;
+    $('dSpeed').textContent = p ? p.s+' км/год' : '—';
+    $('dTime').textContent = p ? fmtTime(p.t) : '—';
+    $('dSats').textContent = p && p.sc!=null ? p.sc : '—';
+    $('dCoords').textContent = p ? p.y.toFixed(5)+', '+p.x.toFixed(5) : '—';
+    $('navLink').href = p ? `https://maps.apple.com/?ll=${p.y},${p.x}&q=${encodeURIComponent(u.getName())}` : '#';
+  }
+
+  $('backBtn').addEventListener('click', () => {
+    selectedId = null; clearTrack();
+    $('detailView').classList.add('hidden'); $('listView').classList.remove('hidden');
+    renderList();
+  });
+  $('grab').addEventListener('click', () => $('sheet').classList.toggle('collapsed'));
+
+  /* ---------- tracks ---------- */
+  function clearTrack(){ if(trackLayer){ map.removeLayer(trackLayer); trackLayer = null; } }
+
+  function range(r){
+    const now = new Date(), sod = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const s = x => Math.floor(x.getTime()/1000);
+    if(r==='today') return [s(sod), s(now)];
+    if(r==='yesterday') return [s(sod) - 86400, s(sod) - 1];
+    if(r==='3d') return [s(sod) - 2*86400, s(now)];
+    return [s(sod) - 6*86400, s(now)];
+  }
+
+  $('seg').addEventListener('click', async e => {
+    const b = e.target.closest('button'); if(!b || !selectedId) return;
+    document.querySelectorAll('#seg button').forEach(x => x.classList.toggle('on', x===b));
+    const [from, to] = range(b.dataset.r), id = selectedId;
+    $('trackInfo').textContent = 'Завантаження маршруту…';
+    clearTrack();
+    try{
+      const data = await remote('messages/load_interval', {itemId:id, timeFrom:from, timeTo:to, flags:1, flagsMask:65281, loadCount:0xffffffff});
+      try{ await remote('messages/unload', {}); }catch(_){}
+      if(id !== selectedId) return;
+      const pts = (data.messages||[]).map(m => m.pos).filter(p => p && p.y && p.x);
+      if(pts.length < 2){ $('trackInfo').textContent = 'За цей період поїздок немає'; return; }
+      let dist = 0, maxS = 0;
+      for(let i=1;i<pts.length;i++){ const d = km(pts[i-1], pts[i]); if(d < 5) dist += d; maxS = Math.max(maxS, pts[i].s||0); }
+      const ll = pts.map(p => [p.y, p.x]);
+      trackLayer = L.featureGroup([
+        L.polyline(ll, {color:'#ffffff', weight:8, opacity:.9}),
+        L.polyline(ll, {color:'#1f6feb', weight:4.5, opacity:.95}),
+        L.circleMarker(ll[0], {radius:6, color:'#fff', weight:2, fillColor:'#16a34a', fillOpacity:1}),
+        L.circleMarker(ll[ll.length-1], {radius:6, color:'#fff', weight:2, fillColor:'#dc2626', fillOpacity:1})
+      ]).addTo(map);
+      map.fitBounds(trackLayer.getBounds(), {padding:[40,40], paddingBottomRight:[40, $('sheet').offsetHeight]});
+      $('trackInfo').textContent = `Пробіг ≈ ${dist.toFixed(1)} км · макс. ${maxS} км/год · ${pts.length} точок`;
+    }catch(code){
+      $('trackInfo').textContent = 'Не вдалося завантажити: ' + errText(code);
+    }
+  });
+
+  start();
+})();
+</script>
+</body>
+</html>
